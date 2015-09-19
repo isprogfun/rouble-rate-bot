@@ -4,12 +4,28 @@ var fs = require('fs');
 var sender = require('./app/sender.js');
 var token = require('./app/config.json').token;
 
+var MongoClient = require('mongodb').MongoClient;
+var url = 'mongodb://localhost:27017/roubleratebot';
+
+app.use(function (req, res, next) {
+    var connection = MongoClient.connect(url);
+
+    connection.then(function (db) {
+        console.log('Connected to db');
+        req.db = db;
+        next();
+    }).catch (function (error) {
+        connection = undefined;
+        next(error);
+    });
+});
+
 app.post('/' + token, function (req, res) {
     var request;
     var data;
 
     req.on('data', function (data) {
-        sender(JSON.parse(data.toString()));
+        sender(JSON.parse(data.toString()), req);
     });
 
     req.on('end', function () {
@@ -20,6 +36,7 @@ app.post('/' + token, function (req, res) {
 app.use(function (err, req, res, next) {
     console.error('\nError at middleware', err);
 
+    req.db.close();
     res.writeHead(500);
     res.end('500 Internal Server Error');
 });
