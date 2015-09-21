@@ -22,6 +22,7 @@ request = https.request({
 
     res.on('end', function () {
         console.log('Got new rates');
+
         MongoClient.connect(url, function (err, db) {
             if (err) {
                 throw err;
@@ -38,13 +39,7 @@ request = https.request({
 
                 db.collection('rates').insertOne(result);
             });
-            fs.writeFile(__dirname + '/rates.json', data, function (err) {
-                if (err) {
-                    throw err;
-                } else {
-                    console.log('New rates saved at ' + new Date());
-                }
-            });
+
             db.close();
         });
     });

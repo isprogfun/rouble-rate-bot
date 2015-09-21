@@ -1,6 +1,5 @@
 var express = require('express');
 var app = express();
-var fs = require('fs');
 var sender = require('./app/sender.js');
 var token = require('./app/config.json').token;
 
@@ -25,7 +24,7 @@ app.post('/' + token, function (req, res) {
     var data;
 
     req.on('data', function (data) {
-        sender(JSON.parse(data.toString()), req);
+        sender.handleMessage(req, JSON.parse(data.toString()));
     });
 
     req.on('end', function () {
