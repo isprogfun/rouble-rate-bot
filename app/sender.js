@@ -26,7 +26,7 @@ module.exports = {
                 break;
 
             case '/settings':
-                this.handleSettings(chatId, req.db, text);
+                this.handleSettings(chatId, req.db);
                 break;
 
             case 'Включить':
@@ -80,14 +80,17 @@ module.exports = {
         request.end();
     },
 
-    handleSettings: function (chatId, db, text) {
-        db.collection('users').find({id: data.message.from.id}).toArray(function (err, users) {
+    handleSettings: function (chatId, db) {
+        var that = this;
+
+        db.collection('users').find({id: chatId}).toArray(function (err, users) {
             if (err) {
                 throw err;
             }
 
             var user;
             var notifications;
+            var text;
 
             if (users && users.length) {
                 notifications = users[0].notifications;
@@ -95,7 +98,7 @@ module.exports = {
                 notifications = false;
 
                 db.collection('users').insertOne({
-                    id: data.message.from.id,
+                    id: chatId,
                     notifications: notifications
                 });
             }
@@ -114,8 +117,8 @@ module.exports = {
                 });
             }
 
-            this.sendMessage(chatId, text, replyMarkup);
-        }).bind(this);
+            that.sendMessage(chatId, text, replyMarkup);
+        });
     },
 
     sendRate: function (chatId, db) {
