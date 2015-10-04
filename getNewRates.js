@@ -27,18 +27,23 @@ request = https.request({
             if (err) {
                 throw err;
             }
+
+            var results = JSON.parse(data).query.results;
+
             console.log('Connected to db');
 
-            db.collection('rates').remove();
+            if (results) {
+                db.collection('rates').remove();
 
-            JSON.parse(data).query.results.rate.forEach(function (rate) {
-                var result = {};
+                results.rate.forEach(function (rate) {
+                    var result = {};
 
-                result.title = rate.id.substring(0, 3);
-                result.rate = rate.Rate;
+                    result.title = rate.id.substring(0, 3);
+                    result.rate = rate.Rate;
 
-                db.collection('rates').insertOne(result);
-            });
+                    db.collection('rates').insertOne(result);
+                });
+            }
 
             db.close();
         });
