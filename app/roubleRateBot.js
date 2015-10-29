@@ -1,7 +1,7 @@
 var express = require('express');
 var app = express();
-var sender = require('./app/sender.js');
-var token = require('./app/config.json').token;
+var sender = require('./sender.js');
+var token = require('./config.json').token;
 
 var MongoClient = require('mongodb').MongoClient;
 var url = 'mongodb://localhost:27017/roubleratebot';
