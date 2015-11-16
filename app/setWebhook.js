@@ -1,5 +1,5 @@
 var https = require('https');
-var token = require('./config.json').token;
+var token = require(__dirname + '/config.json').token;
 var options = {
     host: 'api.telegram.org',
     port: 443,

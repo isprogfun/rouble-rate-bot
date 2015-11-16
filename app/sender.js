@@ -1,7 +1,7 @@
 var https = require('https');
 var querystring = require('querystring');
 
-var config = require('./config.json');
+var config = require(__dirname + '/config.json');
 var path = '/bot' + config.token + '/sendMessage?';
 var options = {
     hostname: 'api.telegram.org',

@@ -1,4 +1,4 @@
-var sender = require('./sender');
+var sender = require(__dirname + '/sender');
 var MongoClient = require('mongodb').MongoClient;
 var url = 'mongodb://localhost:27017/roubleratebot';
 
