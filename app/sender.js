@@ -122,9 +122,9 @@ module.exports = {
     },
 
     sendRate: function (chatId, db) {
-        console.log(chatId);
-
-        var that = this;
+        var that = this,
+            text = '',
+            lastSend = {};
 
         db.collection('rates').find().toArray(function (err, collection) {
             if (err) {
@@ -138,8 +138,26 @@ module.exports = {
                     result = result + '0';
                 }
 
+                lastSend[rate.title] = rate.rate;
+
                 return rate.title + ': ' + result + ' руб';
             }).join('\n');
+
+            // Пользователю сохраняем последние отправленные курсы
+            db.collection('users').find({id: chatId}).toArray(function (err, users) {
+                if (err) {
+                    throw err;
+                }
+
+                if (users && users.length) {
+                    db.collection('users').update({
+                        id: chatId
+                    },
+                    {
+                        $set: {lastSend: lastSend}
+                    });
+                }
+            });
 
             that.sendMessage(chatId, text);
         });

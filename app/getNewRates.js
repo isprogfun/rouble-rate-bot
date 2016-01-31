@@ -1,6 +1,12 @@
+/**
+ * Запускается по крону каждую минуту, итого 60 запросов в час с IP
+ * Лимит для публичного доступа 2,000 calls/hour/IP https://developer.yahoo.com/yql/faq/
+ * Полученные данные сохраняет в базу, затирая перед этим старые значения
+ */
 var https = require('https');
 var fs = require('fs');
 var request;
+var sender = require(__dirname + '/sender.js');
 var path =
     '/v1/public/yql?q=select+*+from+yahoo.finance.xchange+where+pair+=+"USDRUB,EURRUB"' +
     '&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=';
@@ -28,24 +34,62 @@ request = https.request({
                 throw err;
             }
 
-            var results = JSON.parse(data).query.results;
+            var rates = JSON.parse(data).query.results.rate;
 
             console.log('Connected to db');
 
-            if (results) {
-                db.collection('rates').remove();
+            if (rates) {
+                // Сохраняем курс в базу
+                rates.forEach(function (rate) {
+                    db.collection('rates').update({
+                        title: rate.id.substring(0, 3)
+                    }, {
+                        title: rate.id.substring(0, 3),
+                        rate: rate.Rate
+                    }, {
+                        upsert: true
+                    });
+                });
 
-                results.rate.forEach(function (rate) {
-                    var result = {};
+                /**
+                 * Перебираем юзеров, которые следят за изменениями
+                 * проверяем для каждой записи, надо ли отправить им новый курс
+                 */
+                db.collection('users').find({sendChanges: true}).toArray(function (err, users) {
+                    if (err) {
+                        throw err;
+                    }
 
-                    result.title = rate.id.substring(0, 3);
-                    result.rate = rate.Rate;
+                    if (!users || !users.length) {
+                        return;
+                    }
 
-                    db.collection('rates').insertOne(result);
+                    // Для каждого юзера
+                    users.forEach(function(user) {
+                        // Перебираем сохранённые курсы
+                        Object.keys(user.lastSend).some(function(title) {
+                            // Перебираем полученные курсы
+                            return rates.some(function (rate) {
+                                // Если совпала валюта
+                                if (title === rate.id.substring(0, 3)) {
+                                    // Проверяем разницу и если она больше — посылаем значение
+                                    // TODO: Тут надо поменять на пользовательскую настройку
+                                    if (Math.abs(user.lastSend[title] - rate.Rate) > 1) {
+                                        sender.sendRate(user.id, db);
+                                    }
+
+                                    return true;
+                                }
+                            });
+                        });
+                    });
+
+                    // TODO: понять как и когда надо закрывать соединение
+                    setTimeout(function() {
+                        db.close();
+                    }, 1000);
                 });
             }
-
-            db.close();
         });
     });
 });
