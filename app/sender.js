@@ -1,56 +1,42 @@
-var https = require('https');
-var querystring = require('querystring');
+'use strict';
 
-var config = require(__dirname + '/config.json');
-var path = '/bot' + config.token + '/sendMessage?';
-var options = {
+let https = require('https');
+let querystring = require('querystring');
+let config = require(__dirname + '/config.json');
+let path = '/bot' + config.token + '/sendMessage?';
+let options = {
     hostname: 'api.telegram.org',
     port: '443',
     method: 'POST'
 };
 
 module.exports = {
+    /**
+     * Если нам присылают конкретные команды — мы сразу отправляем конкретные ответы
+     * Иначе вызываем функцию определения диалога
+     */
     handleMessage: function (req, data) {
-        var request;
-        var text;
-        var chatId = data.message.chat.id;
+        let messageText = data.message.text;
+        let chatId = data.message.chat.id;
 
-        console.log('Got request: ');
-        console.log(data);
+        console.log('Got request at: ' + new Date() + '\n', data);
 
-        switch (data.message.text) {
-            case '/start':
-                text = 'Привет. Я обновляю курсы доллара и евро каждую минуту. ' +
-                    'Отправь мне пачку денег или команду /get и я пришлю тебе всё, что знаю.';
-                this.sendMessage(chatId, text);
-                break;
+        // Сохраняем последнее сообщение пользователя для обработки настроек
+        req.db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {lastMessage: messageText}});
 
-            case '/settings':
-                this.handleSettings(chatId, req.db);
-                break;
+        // Проверяем стандартные команды
+        if (messageText === '/start') {
+            let text = 'Бот обновляет курсы доллара и евро каждую минуту.';
+            text += 'Вы можете получить текущий биржевой курс, а также настроить оповещения по изменению курса.';
 
-            case 'Включить':
-                req.db.collection('users').findOneAndUpdate({
-                    id: data.message.from.id
-                }, {$set: {notifications: true}});
-                this.sendMessage(chatId, 'Обновления включены');
-                break;
-
-            case 'Выключить':
-                req.db.collection('users').findOneAndUpdate({
-                    id: data.message.from.id
-                }, {$set: {notifications: false}});
-                this.sendMessage(chatId, 'Обновления выключены');
-                break;
-
-            case '/get':
-            case '💵':
-                this.sendRate(chatId, req.db);
-                break;
-
-            default:
-                return;
-                break;
+            this.sendMessage(chatId, text);
+        } else if (messageText === '/settings') {
+            this.handleSettings(chatId, req.db);
+        } else if (messageText === '/get' || messageText === '💵') {
+            this.sendRate(chatId, req.db);
+        } else {
+            // Команды не найдены — поиск сообщений для настроек
+            this.handleNoCommand(chatId, messageText, req.db);
         }
     },
 
@@ -63,76 +49,83 @@ module.exports = {
         options.path = path + querystring.stringify({
             chat_id: chatId,
             text: text,
-            reply_markup: replyMarkup
+            reply_markup: replyMarkup,
+            parse_mode: 'Markdown'
         });
 
         request = https.request (options, function (res) {
             res.on('data', function (resData) {
-                console.log('Got answer');
-                console.log(JSON.parse(resData.toString()));
+                console.log('Got answer at: ' + new Date() + '\n', JSON.parse(resData.toString()));
             });
         });
 
         request.on('error', function (e) {
-            console.log('Problem with request: ' + e.message);
+            console.log('Problem with request at: ' + new Date() + '\n', e.message);
         });
 
         request.end();
     },
 
+    /**
+     * Выводим текущие настройки и клавиатуру с кнопками, ведущими ко всем настройкам в отдельности
+     */
     handleSettings: function (chatId, db) {
         var that = this;
 
         db.collection('users').find({id: chatId}).toArray(function (err, users) {
-            if (err) {
-                throw err;
-            }
+            if (err) { throw err; }
 
-            var user;
-            var notifications;
-            var text;
+            let notifications = false;
+            let sendChanges = false;
+            let replyMarkup = JSON.stringify({
+                keyboard: [['Настроить оповещения'], ['Настроить разницу курса']],
+                resize_keyboard: true
+            });
+            let text = 'Текущие настройки:\n' + 'Оповещения об изменении курса: ';
 
+            // TODO: убрать временно нотификации по времени
             if (users && users.length) {
                 notifications = users[0].notifications;
+                sendChanges = users[0].sendChanges;
             } else {
-                notifications = false;
-
                 db.collection('users').insertOne({
                     id: chatId,
-                    notifications: notifications
+                    notifications: notifications,
+                    sendChanges: sendChanges
                 });
             }
 
-            if (!notifications) {
-                text = 'Включить получение ежедневных утренних уведомлений о текущем курсе';
-                replyMarkup = JSON.stringify({
-                    keyboard: [['Включить']],
-                    resize_keyboard: true
-                });
+            if (sendChanges) {
+                text += '*Включены* \n';
+                text += 'Разница курса для оповещения: *1 руб.*';
             } else {
-                text = 'Выключить получение ежедневных утренних уведомлений о текущем курсе';
-                replyMarkup = JSON.stringify({
-                    keyboard: [['Выключить']],
-                    resize_keyboard: true
-                });
+                text += '*Выключены*';
             }
 
             that.sendMessage(chatId, text, replyMarkup);
         });
     },
 
+    /**
+     * Разбираемся с просто текстом, прислыанным пользователем (возможно это настройки)
+     */
+    handleNoCommand: function(chatId, messageText, db) {
+        // TODO
+    },
+
+    /**
+     * Отправляем курс валют
+     */
     sendRate: function (chatId, db) {
-        var that = this,
-            text = '',
-            lastSend = {};
+        let that = this;
+        let text,
+        let lastSend = {};
 
         db.collection('rates').find().toArray(function (err, collection) {
-            if (err) {
-                throw err;
-            }
+            if (err) { throw err; }
 
             text = collection.map(function (rate) {
-                var result = (Math.round(rate.rate * 100) / 100).toString();
+                let result = (Math.round(rate.rate * 100) / 100).toString();
 
                 if (result.length === 4) {
                     result = result + '0';
@@ -145,17 +138,10 @@ module.exports = {
 
             // Пользователю сохраняем последние отправленные курсы
             db.collection('users').find({id: chatId}).toArray(function (err, users) {
-                if (err) {
-                    throw err;
-                }
+                if (err) { throw err; }
 
                 if (users && users.length) {
-                    db.collection('users').update({
-                        id: chatId
-                    },
-                    {
-                        $set: {lastSend: lastSend}
-                    });
+                    db.collection('users').update({ id: chatId }, { $set: {lastSend: lastSend} });
                 }
             });
 
