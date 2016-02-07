@@ -18,29 +18,108 @@ module.exports = {
     handleMessage: function (req, data) {
         let messageText = data.message.text;
         let chatId = data.message.chat.id;
+        let that = this;
+        let db = req.db;
 
         console.log('Got request at: ' + new Date() + '\n', data);
 
-        // Сохраняем последнее сообщение пользователя для обработки настроек
-        req.db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {lastMessage: messageText}});
-
         // Проверяем стандартные команды
+        if (['/start', '/settings', '/get', '💵', '/stop'].indexOf(messageText) !== -1) {
+            db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {lastMessage: messageText}});
+        }
+
         if (messageText === '/start') {
-            let text = 'Бот обновляет курсы доллара и евро каждую минуту.';
-            text += 'Вы можете получить текущий биржевой курс, а также настроить оповещения по изменению курса.';
+            let text = `Бот обновляет курсы доллара и евро каждую минуту.
+                Вы можете получить текущий биржевой курс, а также настроить оповещения по изменению курса.`;
 
             this.sendMessage(chatId, text);
         } else if (messageText === '/settings') {
-            this.handleSettings(chatId, req.db);
+            this.handleSettings(chatId, db);
+        } else if (messageText === '/stop') {
+            db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {sendChanges: false}});
+            this.sendMessage(chatId, 'Вы отписались от оповещений');
         } else if (messageText === '/get' || messageText === '💵') {
-            this.sendRate(chatId, req.db);
+            this.sendRate(chatId, db);
         } else {
             // Команды не найдены — поиск сообщений для настроек
-            this.handleNoCommand(chatId, messageText, req.db);
+            db.collection('users').findOne({id: chatId}, function(err, user) {
+                if (err) { throw err; }
+
+                if (messageText === 'Выключить оповещения') {
+                    db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {sendChanges: false}});
+                    that.handleSettings(chatId, db);
+                } else if (messageText == 'Включить оповещения') {
+                    db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {sendChanges: true}});
+                    that.handleSettings(chatId, db);
+                } else if (messageText === 'Настроить разницу курса') {
+                    db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {lastMessage: messageText}});
+                    that.sendMessage(chatId, 'Введите новое значение разницы курса (больше 0 и меньше 10)', JSON.stringify({
+                        keyboard: [['Выйти']],
+                        resize_keyboard: true
+                    }));
+                } else if (messageText === 'Выйти' &&
+                    user.lastMessage === 'Настроить разницу курса') {
+                    db.collection('users').findOneAndUpdate({ id: chatId }, {$set: {lastMessage: ''}});
+                    that.handleSettings(chatId, db);
+                } else if (user.lastMessage === 'Настроить разницу курса') {
+                    let difference = parseFloat(messageText);
+
+                    if (difference && difference > 0 && difference < 10) {
+                        db.collection('users').findOneAndUpdate({ id: chatId }, {
+                            $set: {difference: difference, lastMessage: ''}
+                        });
+                        that.handleSettings(chatId, db);
+                    }
+                } else if (messageText === 'Выйти') {
+                    that.sendMessage(chatId, 'Вы вышли из режима настроек');
+                }
+            });
         }
     },
 
+    /**
+     * Выводим текущие настройки и клавиатуру с кнопками,
+     * ведущими ко всем настройкам в отдельности
+     */
+    handleSettings: function (chatId, db) {
+        var that = this;
+
+        db.collection('users').findOne({id: chatId}, function (err, user) {
+            if (err) { throw err; }
+
+            let sendChanges = user.sendChanges || false;
+            let text = 'Текущие настройки:\n' + 'Оповещения об изменении курса: ';
+            let replyMarkup = {resize_keyboard: true};
+
+            if (!user) {
+                db.collection('users').insertOne({id: chatId, sendChanges: sendChanges});
+            }
+
+            if (sendChanges) {
+                let difference = user.difference || 1;
+
+                text += '*Включены* \n';
+                text += `Разница курса для оповещения: *${difference} руб.*`;
+                replyMarkup.keyboard = [
+                    ['Выключить оповещения'],
+                    ['Настроить разницу курса'],
+                    ['Выйти']
+                ];
+            } else {
+                text += '*Выключены*';
+                replyMarkup.keyboard = [
+                    ['Включить оповещения'],
+                    ['Выйти']
+                ];
+            }
+
+            that.sendMessage(chatId, text, JSON.stringify(replyMarkup));
+        });
+    },
+
     sendMessage: function (chatId, text, replyMarkup) {
+        let request;
+
         replyMarkup = replyMarkup || JSON.stringify({
             keyboard: [['💵']],
             resize_keyboard: true
@@ -67,58 +146,11 @@ module.exports = {
     },
 
     /**
-     * Выводим текущие настройки и клавиатуру с кнопками, ведущими ко всем настройкам в отдельности
-     */
-    handleSettings: function (chatId, db) {
-        var that = this;
-
-        db.collection('users').find({id: chatId}).toArray(function (err, users) {
-            if (err) { throw err; }
-
-            let notifications = false;
-            let sendChanges = false;
-            let replyMarkup = JSON.stringify({
-                keyboard: [['Настроить оповещения'], ['Настроить разницу курса']],
-                resize_keyboard: true
-            });
-            let text = 'Текущие настройки:\n' + 'Оповещения об изменении курса: ';
-
-            // TODO: убрать временно нотификации по времени
-            if (users && users.length) {
-                notifications = users[0].notifications;
-                sendChanges = users[0].sendChanges;
-            } else {
-                db.collection('users').insertOne({
-                    id: chatId,
-                    notifications: notifications,
-                    sendChanges: sendChanges
-                });
-            }
-
-            if (sendChanges) {
-                text += '*Включены* \n';
-                text += 'Разница курса для оповещения: *1 руб.*';
-            } else {
-                text += '*Выключены*';
-            }
-
-            that.sendMessage(chatId, text, replyMarkup);
-        });
-    },
-
-    /**
-     * Разбираемся с просто текстом, прислыанным пользователем (возможно это настройки)
-     */
-    handleNoCommand: function(chatId, messageText, db) {
-        // TODO
-    },
-
-    /**
      * Отправляем курс валют
      */
     sendRate: function (chatId, db) {
         let that = this;
-        let text,
+        let text;
         let lastSend = {};
 
         db.collection('rates').find().toArray(function (err, collection) {
@@ -127,9 +159,7 @@ module.exports = {
             text = collection.map(function (rate) {
                 let result = (Math.round(rate.rate * 100) / 100).toString();
 
-                if (result.length === 4) {
-                    result = result + '0';
-                }
+                if (result.length === 4) { result = result + '0'; }
 
                 lastSend[rate.title] = rate.rate;
 

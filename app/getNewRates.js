@@ -1,18 +1,21 @@
+'use strict';
+
 /**
  * Запускается по крону каждую минуту, итого 60 запросов в час с IP
  * Лимит для публичного доступа 2,000 calls/hour/IP https://developer.yahoo.com/yql/faq/
  * Полученные данные сохраняет в базу, затирая перед этим старые значения
  */
-var https = require('https');
-var fs = require('fs');
-var request;
-var sender = require(__dirname + '/sender.js');
-var path =
+let https = require('https');
+let fs = require('fs');
+
+let request;
+let sender = require(__dirname + '/sender.js');
+let path =
     '/v1/public/yql?q=select+*+from+yahoo.finance.xchange+where+pair+=+"USDRUB,EURRUB"' +
     '&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=';
 
-var MongoClient = require('mongodb').MongoClient;
-var url = 'mongodb://localhost:27017/roubleratebot';
+let MongoClient = require('mongodb').MongoClient;
+let url = 'mongodb://localhost:27017/roubleratebot';
 
 request = https.request({
     hostname: 'query.yahooapis.com',
@@ -20,7 +23,7 @@ request = https.request({
     port: 443,
     method: 'GET'
 }, function (res) {
-    var data = '';
+    let data = '';
 
     res.on('data', function (chunk) {
         data += chunk;
@@ -30,11 +33,9 @@ request = https.request({
         console.log('Got new rates');
 
         MongoClient.connect(url, function (err, db) {
-            if (err) {
-                throw err;
-            }
+            if (err) { throw err; }
 
-            var rates = JSON.parse(data).query.results.rate;
+            let rates = JSON.parse(data).query.results.rate;
 
             console.log('Connected to db');
 
@@ -56,13 +57,9 @@ request = https.request({
                  * проверяем для каждой записи, надо ли отправить им новый курс
                  */
                 db.collection('users').find({sendChanges: true}).toArray(function (err, users) {
-                    if (err) {
-                        throw err;
-                    }
+                    if (err) { throw err; }
 
-                    if (!users || !users.length) {
-                        return;
-                    }
+                    if (!users || !users.length) { return; }
 
                     // Для каждого юзера
                     users.forEach(function(user) {
@@ -72,10 +69,13 @@ request = https.request({
                             return rates.some(function (rate) {
                                 // Если совпала валюта
                                 if (title === rate.id.substring(0, 3)) {
+                                    let difference = user.difference || 1;
+                                    let actualDifference = user.lastSend[title] - rate.Rate;
+
                                     // Проверяем разницу и если она больше — посылаем значение
                                     // TODO: Тут надо поменять на пользовательскую настройку
-                                    if (Math.abs(user.lastSend[title] - rate.Rate) > 1) {
-                                        sender.sendRate(user.id, db);
+                                    if (Math.abs(actualDifference) > difference) {
+                                        sender.sendRate(user.id, db, actualDifference);
                                     }
 
                                     return true;
