@@ -1,15 +1,15 @@
-var express = require('express');
-var app = express();
-var sender = require(__dirname + '/sender.js');
-var token = require(__dirname + '/config.json').token;
+'use strict';
 
-var MongoClient = require('mongodb').MongoClient;
-var url = 'mongodb://localhost:27017/roubleratebot';
+let express = require('express');
+let app = express();
+let sender = require(__dirname + '/sender.js');
+let token = require(__dirname + '/config.json').token;
+
+let MongoClient = require('mongodb').MongoClient;
+let url = 'mongodb://localhost:27017/roubleratebot';
 
 app.use(function (req, res, next) {
-    var connection = MongoClient.connect(url);
-
-    connection.then(function (db) {
+    MongoClient.connect(url).then(function (db) {
         console.log('Connected to db');
         req.db = db;
         next();
@@ -20,9 +20,6 @@ app.use(function (req, res, next) {
 });
 
 app.post('/' + token, function (req, res) {
-    var request;
-    var data;
-
     req.on('data', function (data) {
         sender.handleMessage(req, JSON.parse(data.toString()));
     });

@@ -1,18 +1,20 @@
-var https = require('https');
-var token = require(__dirname + '/config.json').token;
-var options = {
+'use strict';
+
+let https = require('https');
+let token = require(__dirname + '/config.json').token;
+let options = {
     host: 'api.telegram.org',
     port: 443,
+    // Убрать хук
     // path: '/bot' + token + '/setWebhook?url=',
     path: '/bot' + token + '/setWebhook?url=https://isprogfun.ru/' + token,
     method: 'GET'
 };
-var request;
+let request;
 
 request = https.request(options, function (res) {
     res.on('end', function (data) {
-        console.log('Got answer: ');
-        console.log(data);
+        console.log('Got answer: ' + new Date() + '\n', data);
     });
 });
 

@@ -1,21 +1,19 @@
-var sender = require(__dirname + '/sender');
-var MongoClient = require('mongodb').MongoClient;
-var url = 'mongodb://localhost:27017/roubleratebot';
+'use strict';
+
+let sender = require(__dirname + '/sender');
+let MongoClient = require('mongodb').MongoClient;
+let url = 'mongodb://localhost:27017/roubleratebot';
 
 MongoClient.connect(url, function (err, db) {
-    if (err) {
-        throw err;
-    }
+    if (err) { throw err; }
 
     console.log('Connected to db');
 
     db.collection('rates').find().toArray(function (err, collection) {
-        if (err) {
-            throw err;
-        }
+        if (err) { throw err; }
 
-        var text = collection.map(function (rate) {
-            var result = (Math.round(rate.rate * 100) / 100).toString();
+        let text = collection.map(function (rate) {
+            let result = (Math.round(rate.rate * 100) / 100).toString();
 
             if (result.length === 4) {
                 result = result + '0';
@@ -24,12 +22,10 @@ MongoClient.connect(url, function (err, db) {
             return rate.title + ': ' + result + ' руб';
         }).join('\n');
 
-        db.collection('users').find().toArray(function (err, collection) {
-            if (err) {
-                throw err;
-            }
+        db.collection('users').find().toArray(function (err, users) {
+            if (err) { throw err; }
 
-            collection.forEach(function (user) {
+            users.forEach(function (user) {
                 if (user.notifications) {
                     sender.sendMessage(user.id, text);
                 }

@@ -62,9 +62,9 @@ request = https.request({
                     if (!users || !users.length) { return; }
 
                     // Для каждого юзера
-                    users.forEach(function(user) {
+                    users.forEach(function (user) {
                         // Перебираем сохранённые курсы
-                        Object.keys(user.lastSend).some(function(title) {
+                        Object.keys(user.lastSend).some(function (title) {
                             // Перебираем полученные курсы
                             return rates.some(function (rate) {
                                 // Если совпала валюта
@@ -85,7 +85,7 @@ request = https.request({
                     });
 
                     // TODO: понять как и когда надо закрывать соединение
-                    setTimeout(function() {
+                    setTimeout(function () {
                         db.close();
                     }, 1000);
                 });
