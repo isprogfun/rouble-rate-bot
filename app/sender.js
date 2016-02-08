@@ -23,11 +23,6 @@ module.exports = {
 
         console.log('Got request at: ' + new Date() + '\n', data);
 
-        // Проверяем стандартные команды
-        if (['/start', '/settings', '/get', '💵', '/stop'].indexOf(messageText) !== -1) {
-            db.collection('users').findOneAndUpdate({id: chatId}, {$set: {lastMessage: messageText}});
-        }
-
         if (messageText === '/start') {
             let text = `Бот обновляет курсы доллара и евро каждую минуту.
                 Вы можете получить текущий биржевой курс, а также настроить оповещения по изменению курса.`;
@@ -36,7 +31,7 @@ module.exports = {
         } else if (messageText === '/settings') {
             this.handleSettings(chatId, db);
         } else if (messageText === '/stop') {
-            db.collection('users').findOneAndUpdate({id: chatId}, {$set: {sendChanges: false}});
+            this.updateUser(chatId, db, {sendChanges: false});
             this.sendMessage(chatId, 'Вы отписались от оповещений');
         } else if (messageText === '/get' || messageText === '💵') {
             this.sendRate(chatId, db);
@@ -46,30 +41,27 @@ module.exports = {
                 if (err) { throw err; }
 
                 if (messageText === 'Выключить оповещения') {
-                    db.collection('users').findOneAndUpdate({id: chatId}, {$set: {sendChanges: false}});
+                    that.updateUser(chatId, db, {sendChanges: false});
                     that.handleSettings(chatId, db);
                 } else if (messageText == 'Включить оповещения') {
-                    db.collection('users').findOneAndUpdate({id: chatId}, {$set: {sendChanges: true}});
+                    that.updateUser(chatId, db, {sendChanges: true});
                     that.handleSettings(chatId, db);
                 } else if (messageText === 'Настроить разницу курса') {
                     let text = 'Введите новое значение разницы курса (больше 0 и меньше 10)';
 
-                    db.collection('users').findOneAndUpdate({id: chatId}, {$set: {lastMessage: messageText}});
+                    that.updateUser(chatId, db, {sendChanges: {lastMessage: messageText}});
                     that.sendMessage(chatId, text, JSON.stringify({
                         keyboard: [['Выйти']],
                         resize_keyboard: true
                     }));
-                } else if (messageText === 'Выйти' &&
-                    user.lastMessage === 'Настроить разницу курса') {
-                    db.collection('users').findOneAndUpdate({id: chatId}, {$set: {lastMessage: ''}});
+                } else if (user.lastMessage === 'Настроить разницу курса' && messageText === 'Выйти') {
+                    that.updateUser(chatId, db, {lastMessage: ''});
                     that.handleSettings(chatId, db);
                 } else if (user.lastMessage === 'Настроить разницу курса') {
                     let difference = parseFloat(messageText);
 
                     if (difference && difference > 0 && difference < 10) {
-                        db.collection('users').findOneAndUpdate({id: chatId}, {
-                            $set: {difference: difference, lastMessage: ''}
-                        });
+                        that.updateUser(chatId, db, {difference: difference, lastMessage: ''});
                         that.handleSettings(chatId, db);
                     }
                 } else if (messageText === 'Выйти') {
@@ -151,13 +143,12 @@ module.exports = {
      */
     sendRate: function (chatId, db) {
         let that = this;
-        let text;
         let lastSend = {};
 
         db.collection('rates').find().toArray(function (err, collection) {
             if (err) { throw err; }
 
-            text = collection.map(function (rate) {
+            let text = collection.map(function (rate) {
                 let result = (Math.round(rate.rate * 100) / 100).toString();
 
                 if (result.length === 4) { result = result + '0'; }
@@ -168,15 +159,14 @@ module.exports = {
             }).join('\n');
 
             // Пользователю сохраняем последние отправленные курсы
-            db.collection('users').find({id: chatId}).toArray(function (err, users) {
-                if (err) { throw err; }
-
-                if (users && users.length) {
-                    db.collection('users').update({id: chatId}, {$set: {lastSend: lastSend}});
-                }
-            });
-
+            that.updateUser(chatId, db, {lastSend: lastSend});
             that.sendMessage(chatId, text);
         });
+    },
+
+    updateUser: function (chatId, db, options) {
+        if (options && Object.keys(options).length) {
+            db.collection('users').findOneAndUpdate({id: chatId}, {$set: options});
+        }
     }
 };
