@@ -29,7 +29,7 @@ module.exports = {
 
             this.sendMessage(chatId, text);
         } else if (messageText === '/settings') {
-            this.handleSettings(chatId, db);
+            this.handleSettings(chatId, db, data);
         } else if (messageText === '/stop') {
             this.updateUser(chatId, db, {sendChanges: false});
             this.sendMessage(chatId, 'Вы отписались от оповещений');
@@ -49,7 +49,7 @@ module.exports = {
                 } else if (messageText === 'Настроить разницу курса') {
                     let text = 'Введите новое значение разницы курса (больше 0 и меньше 10)';
 
-                    that.updateUser(chatId, db, {sendChanges: {lastMessage: messageText}});
+                    that.updateUser(chatId, db, {lastMessage: messageText});
                     that.sendMessage(chatId, text, JSON.stringify({
                         keyboard: [['Выйти']],
                         resize_keyboard: true
@@ -75,18 +75,22 @@ module.exports = {
      * Выводим текущие настройки и клавиатуру с кнопками,
      * ведущими ко всем настройкам в отдельности
      */
-    handleSettings: function (chatId, db) {
+    handleSettings: function (chatId, db, data) {
         let that = this;
 
         db.collection('users').findOne({id: chatId}, function (err, user) {
             if (err) { throw err; }
 
-            let sendChanges = user.sendChanges || false;
+            let sendChanges = (user && user.sendChanges) || false;
             let text = 'Текущие настройки:\nОповещения об изменении курса: ';
             let replyMarkup = {resize_keyboard: true};
 
             if (!user) {
-                db.collection('users').insertOne({id: chatId, sendChanges: sendChanges});
+                db.collection('users').insertOne({
+                    id: chatId,
+                    username: data.message.chat.username,
+                    sendChanges: sendChanges
+                });
             }
 
             if (sendChanges) {
@@ -110,6 +114,9 @@ module.exports = {
         });
     },
 
+    /**
+     * Отправка стандартного сообщения
+     */
     sendMessage: function (chatId, text, replyMarkup) {
         let request;
 
@@ -164,6 +171,9 @@ module.exports = {
         });
     },
 
+    /**
+     * Обновление настроек у пользователя
+     */
     updateUser: function (chatId, db, options) {
         if (options && Object.keys(options).length) {
             db.collection('users').findOneAndUpdate({id: chatId}, {$set: options});
