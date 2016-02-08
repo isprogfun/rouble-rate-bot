@@ -89,7 +89,8 @@ module.exports = {
                 db.collection('users').insertOne({
                     id: chatId,
                     username: data.message.chat.username,
-                    sendChanges: sendChanges
+                    sendChanges: sendChanges,
+                    difference: 1
                 });
             }
 
@@ -150,24 +151,44 @@ module.exports = {
      */
     sendRate: function (chatId, db) {
         let that = this;
-        let lastSend = {};
 
         db.collection('rates').find().toArray(function (err, collection) {
             if (err) { throw err; }
 
-            let text = collection.map(function (rate) {
-                let result = (Math.round(rate.rate * 100) / 100).toString();
+            let lastSend = {};
+            let text;
 
-                if (result.length === 4) { result = result + '0'; }
+            db.collection('users').findOne({id: chatId}, function (err, user) {
+                if (err) { throw err; }
 
-                lastSend[rate.title] = rate.rate;
+                // Сначала доллар
+                collection.sort(function (rate) {
+                    if (rate.title === 'USD') {
+                        return -1;
+                    } else {
+                        return 1;
+                    }
+                });
 
-                return rate.title + ': ' + result + ' руб';
-            }).join('\n');
+                text = collection.map(function (rate) {
+                    let result = `${rate.title}: ${rate.rate} руб`;
+                    let difference = Number(rate.rate - (user.lastSend && user.lastSend[rate.title])).toFixed(2);
 
-            // Пользователю сохраняем последние отправленные курсы
-            that.updateUser(chatId, db, {lastSend: lastSend});
-            that.sendMessage(chatId, text);
+                    if (difference && Number(difference) > 0) {
+                        result += ` _(+${difference} руб)_`;
+                    } else if (difference && Number(difference) !== 0) {
+                        result += ` _(${difference} руб)_`;
+                    }
+
+                    lastSend[rate.title] = rate.rate;
+
+                    return result;
+                }).join('\n');
+
+                // Пользователю сохраняем последние отправленные курсы
+                that.updateUser(chatId, db, {lastSend: lastSend});
+                that.sendMessage(chatId, text);
+            });
         });
     },
 

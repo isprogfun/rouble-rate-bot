@@ -46,7 +46,7 @@ request = https.request({
                         title: rate.id.substring(0, 3)
                     }, {
                         title: rate.id.substring(0, 3),
-                        rate: rate.Rate
+                        rate: Number(rate.Rate).toFixed(2)
                     }, {
                         upsert: true
                     });
@@ -69,13 +69,9 @@ request = https.request({
                             return rates.some(function (rate) {
                                 // Если совпала валюта
                                 if (title === rate.id.substring(0, 3)) {
-                                    let difference = user.difference || 1;
-                                    let actualDifference = user.lastSend[title] - rate.Rate;
-
                                     // Проверяем разницу и если она больше — посылаем значение
-                                    // TODO: Тут надо поменять на пользовательскую настройку
-                                    if (Math.abs(actualDifference) > difference) {
-                                        sender.sendRate(user.id, db, actualDifference);
+                                    if (Math.abs(user.lastSend[title] - rate.Rate) > user.difference) {
+                                        sender.sendRate(user.id, db);
                                     }
 
                                     return true;
