@@ -1,9 +1,12 @@
 'use strict';
 
+require('newrelic');
+
 let express = require('express');
 let app = express();
 let sender = require(__dirname + '/sender.js');
-let token = require(__dirname + '/config.json').token;
+let config = require(__dirname + '/config.json');
+let botan = require('botanio')(config.botanToken);
 
 let MongoClient = require('mongodb').MongoClient;
 let url = 'mongodb://localhost:27017/roubleratebot';
@@ -19,9 +22,12 @@ app.use(function (req, res, next) {
     });
 });
 
-app.post('/' + token, function (req, res) {
+app.post('/' + config.token, function (req, res) {
     req.on('data', function (data) {
-        sender.handleMessage(req, JSON.parse(data.toString()));
+        let parsedData = JSON.parse(data.toString());
+
+        sender.handleMessage(req, parsedData);
+        botan.track(parsedData.message, 'Start');
     });
 
     req.on('end', function () {

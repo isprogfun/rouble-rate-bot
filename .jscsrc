@@ -1,6 +1,7 @@
 {
     "excludeFiles": [
-        ".git/**"
+        ".git/**",
+        "newrelic.js"
     ],
 
     "preset": "yandex"
