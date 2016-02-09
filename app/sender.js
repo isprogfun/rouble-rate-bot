@@ -88,7 +88,7 @@ module.exports = {
             if (!user) {
                 db.collection('users').insertOne({
                     id: chatId,
-                    username: data.message.chat.username,
+                    name: `${data.message.chat.first_name} ${data.message.chat.last_name}`,
                     sendChanges: sendChanges,
                     difference: 1
                 });
