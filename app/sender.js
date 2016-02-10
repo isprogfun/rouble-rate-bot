@@ -25,7 +25,11 @@ module.exports = {
 
         if (messageText === '/start') {
             let text = `Бот обновляет курсы доллара и евро каждую минуту.
-                Вы можете получить текущий биржевой курс, а также настроить оповещения по изменению курса.`;
+
+            Список команд:
+            /get — Получить текущий биржевой курс
+            /settings — Настроить оповещения по изменению курса
+            /stop — Отписаться от оповещений`;
 
             this.sendMessage(chatId, text);
         } else if (messageText === '/settings') {
@@ -176,7 +180,7 @@ module.exports = {
 
                     if (difference && Number(difference) > 0) {
                         result += ` _(+${difference} руб)_`;
-                    } else if (difference && Number(difference) !== 0) {
+                    } else if (difference && Number(difference) !== 0 && Number(difference) !== NaN) {
                         result += ` _(${difference} руб)_`;
                     }
 
