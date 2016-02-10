@@ -64,7 +64,8 @@ request = https.request({
                     // Для каждого юзера
                     users.forEach(function (user) {
                         // Перебираем сохранённые курсы
-                        Object.keys(user.lastSend).some(function (title) {
+                        // TODO: Не выбирать юзеров, у которых нет lastSend
+                        user.lastSend && Object.keys(user.lastSend).some(function (title) {
                             // Перебираем полученные курсы
                             return rates.some(function (rate) {
                                 // Если совпала валюта

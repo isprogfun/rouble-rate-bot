@@ -176,11 +176,12 @@ module.exports = {
 
                 text = collection.map(function (rate) {
                     let result = `${rate.title}: ${rate.rate} руб`;
-                    let difference = Number(rate.rate - (user.lastSend && user.lastSend[rate.title])).toFixed(2);
+                    let difference = Number(rate.rate -
+                        (user && user.lastSend && user.lastSend[rate.title])).toFixed(2);
 
                     if (difference && Number(difference) > 0) {
                         result += ` _(+${difference} руб)_`;
-                    } else if (difference && Number(difference) !== 0 && Number(difference) !== NaN) {
+                    } else if (difference && Number(difference) !== 0 && (Number(difference)).toString() !== 'NaN') {
                         result += ` _(${difference} руб)_`;
                     }
 
