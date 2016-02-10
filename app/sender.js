@@ -92,7 +92,7 @@ module.exports = {
             if (!user) {
                 db.collection('users').insertOne({
                     id: chatId,
-                    name: `${data.message.chat.first_name} ${data.message.chat.last_name}`,
+                    name: `${data.message.chat.first_name} ${data.message.chat.last_name || ''}`,
                     sendChanges: sendChanges,
                     difference: 1
                 });
@@ -184,7 +184,7 @@ module.exports = {
 
                     if (difference && difference > 0) {
                         result += ` _(+${difference} руб)_`;
-                    } else if (difference && Number(difference) !== 0) {
+                    } else if (difference && Number(difference) !== 0 && (Number(difference)).toString() !== 'NaN') {
                         result += ` _(${difference} руб)_`;
                     }
 
