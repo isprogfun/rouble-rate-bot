@@ -51,7 +51,7 @@ module.exports = {
                     that.updateUser(chatId, db, {sendChanges: true});
                     that.handleSettings(chatId, db);
                 } else if (messageText === 'Настроить разницу курса') {
-                    let text = 'Введите новое значение разницы курса (больше 0 и меньше 10)';
+                    let text = 'Введите новое значение разницы курса (от 0.01 до 10)';
 
                     that.updateUser(chatId, db, {lastMessage: messageText});
                     that.sendMessage(chatId, text, JSON.stringify({
@@ -64,7 +64,7 @@ module.exports = {
                 } else if (user.lastMessage === 'Настроить разницу курса') {
                     let difference = parseFloat(messageText);
 
-                    if (difference && difference > 0 && difference < 10) {
+                    if (difference && difference >= 0.01 && difference <= 10) {
                         that.updateUser(chatId, db, {difference: difference, lastMessage: ''});
                         that.handleSettings(chatId, db);
                     }
