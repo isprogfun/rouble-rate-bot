@@ -31,56 +31,55 @@ let getNewRates = function (db) {
 
         res.on('end', function () {
             console.log('Got new rates at: ' + new Date() + '\n', data);
+            let parsedData = JSON.parse(data);
+            let rates = parsedData && parsedData.query && parsedData.query.results && parsedData.query.results.rate;
 
-            let rates = JSON.parse(data).query.results.rate;
+            if (!rates) { return; }
 
-            if (rates) {
-                // Сохраняем курс в базу
-                rates.forEach(function (rate) {
-                    db.collection('rates').update({
-                        title: rate.id.substring(0, 3)
-                    }, {
-                        title: rate.id.substring(0, 3),
-                        rate: Number(rate.Rate).toFixed(2)
-                    }, {
-                        upsert: true
-                    });
+            // Сохраняем курс в базу
+            rates.forEach(function (rate) {
+                db.collection('rates').update({
+                    title: rate.id.substring(0, 3)
+                }, {
+                    title: rate.id.substring(0, 3),
+                    rate: Number(rate.Rate).toFixed(2)
+                }, {
+                    upsert: true
                 });
+            });
 
-                /**
-                 * Перебираем юзеров, которые следят за изменениями
-                 * проверяем для каждой записи, надо ли отправить им новый курс
-                 */
-                db.collection('users').find({sendChanges: true}).toArray(function (err, users) {
-                    if (err) { throw err; }
+            /**
+             * Перебираем юзеров, которые следят за изменениями
+             * проверяем для каждой записи, надо ли отправить им новый курс
+             */
+            db.collection('users').find({sendChanges: true}).toArray(function (err, users) {
+                if (err) { throw err; }
 
-                    if (!users || !users.length) { return; }
+                if (!users || !users.length) { return; }
 
-                    // Для каждого юзера
-                    users.forEach(function (user) {
+                // Для каждого юзера
+                users.forEach(function (user) {
+                    if (user.lastSend) {
                         // Перебираем сохранённые курсы
-                        // TODO: Не выбирать юзеров, у которых нет lastSend
-                        if (user.lastSend) {
-                            Object.keys(user.lastSend).some(function (title) {
-                                // Перебираем полученные курсы
-                                return rates.some(function (rate) {
-                                    // Если совпала валюта
-                                    if (title === rate.id.substring(0, 3)) {
-                                        // Проверяем разницу и если она больше — посылаем значение
-                                        if (Math.abs(user.lastSend[title] - rate.Rate) > user.difference) {
-                                            sender.sendRate(user.id, db);
-                                        }
-
-                                        return true;
+                        Object.keys(user.lastSend).some(function (title) {
+                            // Перебираем полученные курсы
+                            return rates.some(function (rate) {
+                                // Если совпала валюта
+                                if (title === rate.id.substring(0, 3)) {
+                                    // Проверяем разницу и если она больше — посылаем значение
+                                    if (Math.abs(user.lastSend[title] - rate.Rate) > user.difference) {
+                                        sender.sendRate(user.id, db);
                                     }
-                                });
+
+                                    return true;
+                                }
                             });
-                        } else {
-                            sender.sendRate(user.id, db);
-                        }
-                    });
+                        });
+                    } else {
+                        sender.sendRate(user.id, db);
+                    }
                 });
-            }
+            });
         });
     });
 
