@@ -26,10 +26,10 @@ module.exports = {
         if (messageText === '/start') {
             let text = `Бот обновляет курсы доллара и евро каждую минуту.
 
-            Список команд:
-            /get — Получить текущий биржевой курс
-            /settings — Настроить оповещения по изменению курса
-            /stop — Отписаться от оповещений`;
+Список команд:
+/get — Получить текущий биржевой курс
+/settings — Настроить оповещения по изменению курса
+/stop — Отписаться от оповещений`;
 
             this.sendMessage(chatId, text);
         } else if (messageText === '/settings') {
@@ -204,8 +204,39 @@ module.exports = {
      * Обновление настроек у пользователя
      */
     updateUser: function (chatId, db, options) {
+        let that = this;
+
         if (options && Object.keys(options).length) {
-            db.collection('users').findOneAndUpdate({id: chatId}, {$set: options});
+            db.collection('users').findOneAndUpdate({
+                id: chatId
+            }, {
+                $set: options
+            }, function (err) {
+                if (err) { throw err; }
+
+                if (typeof options.sendChanges === 'boolean') {
+                    that.notifyAdmin(db, options.sendChanges);
+                }
+            });
         }
+    },
+
+    /**
+     * Отправить админу информацию о подключении/отключении от оповещений
+     * и кол-во подключенных пользователей
+     */
+    notifyAdmin: function (db, sendChanges) {
+        let that = this;
+        let text = sendChanges ? '+1' : '-1';
+
+        db.collection('users').find({
+            sendChanges: true
+        }).toArray(function (err, collection) {
+            if (err) { throw err; }
+
+            text = `Кол-во оповещаемых: ${text} (${collection && collection.length})`;
+
+            that.sendMessage(config.adminId, text);
+        });
     }
 };
