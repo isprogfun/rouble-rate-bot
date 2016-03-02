@@ -95,5 +95,5 @@ MongoClient.connect(url, function (err, db) {
 
     setInterval(function () {
         getNewRates(db);
-    }, 1000 * 60);
+    }, 5000 * 60);
 });
