@@ -9,16 +9,14 @@ let https = require('https');
 let fs = require('fs');
 
 let sender = require(__dirname + '/sender.js');
-let path =
-    '/v1/public/yql?q=select+*+from+yahoo.finance.xchange+where+pair+=+"USDRUB,EURRUB"' +
-    '&format=json&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback=';
+let path = '/iss/engines/currency/markets/selt/boards/CETS/securities.json?securities=USD000UTSTOM,EUR_RUB__TOM';
 
 let MongoClient = require('mongodb').MongoClient;
 let url = 'mongodb://localhost:27017/roubleratebot';
 
 let getNewRates = function (db) {
     let request = https.request({
-        hostname: 'query.yahooapis.com',
+        hostname: 'moex.com',
         path: path,
         port: 443,
         method: 'GET'
@@ -32,17 +30,25 @@ let getNewRates = function (db) {
         res.on('end', function () {
             console.log('Got new rates at: ' + new Date() + '\n', data);
             let parsedData = JSON.parse(data);
-            let rates = parsedData && parsedData.query && parsedData.query.results && parsedData.query.results.rate;
+            let index = parsedData.marketdata.columns.indexOf('LAST');
+            // Евро в запросе всегда идёт первым
+            let eurRate = parsedData.marketdata.data[0][index];
+            let usdRate = parsedData.marketdata.data[1][index];
+            let rates;
 
-            if (!rates) { return; }
+            if (eurRate && usdRate) {
+                rates = [{title: 'EUR', rate: eurRate}, {title: 'USD', rate: usdRate}];
+            } else {
+                return;
+            }
 
             // Сохраняем курс в базу
             rates.forEach(function (rate) {
                 db.collection('rates').update({
-                    title: rate.id.substring(0, 3)
+                    title: rate.title
                 }, {
-                    title: rate.id.substring(0, 3),
-                    rate: Number(rate.Rate).toFixed(2)
+                    title: rate.title,
+                    rate: Number(rate.rate).toFixed(2)
                 }, {
                     upsert: true
                 });
@@ -65,13 +71,13 @@ let getNewRates = function (db) {
                             // Перебираем полученные курсы
                             return rates.some(function (rate) {
                                 // Если совпала валюта
-                                if (title === rate.id.substring(0, 3)) {
+                                if (title === rate.title) {
                                     // Проверяем разницу и если она больше — посылаем значение
-                                    if (Math.abs(user.lastSend[title] - rate.Rate) > user.difference) {
+                                    if (Math.abs(user.lastSend[title] - rate.rate) > user.difference) {
                                         sender.sendRate(user.id, db);
-                                    }
 
-                                    return true;
+                                        return true;
+                                    }
                                 }
                             });
                         });
@@ -92,6 +98,8 @@ let getNewRates = function (db) {
 
 MongoClient.connect(url, function (err, db) {
     if (err) { throw err; }
+
+    getNewRates(db);
 
     setInterval(function () {
         getNewRates(db);
