@@ -1,13 +1,14 @@
-'use strict';
+const https = require('https');
 
-let https = require('https');
-let querystring = require('querystring');
-let config = require(__dirname + '/config.json');
-let path = '/bot' + config.token + '/sendMessage?';
-let options = {
+const querystring = require('querystring');
+
+const config = require('./config.json');
+
+const path = `/bot${config.token}/sendMessage?`;
+const options = {
     hostname: 'api.telegram.org',
     port: '443',
-    method: 'POST'
+    method: 'POST',
 };
 
 module.exports = {
@@ -15,57 +16,59 @@ module.exports = {
      * Если нам присылают конкретные команды — мы сразу отправляем конкретные ответы
      * Иначе вызываем функцию определения диалога
      */
-    handleMessage: function (req, data) {
-        let messageText = data.message.text;
-        let chatId = data.message.chat.id;
-        let that = this;
-        let db = req.db;
+    handleMessage(req, db, data) {
+        const that = this;
+        const messageText = data.message.text;
+        const chatId = data.message.chat.id;
 
-        console.log('Got request at: ' + new Date() + '\n', data);
+        console.log(`${(new Date()).toISOString()}: Got request\n`, data);
 
         if (messageText === '/start') {
-            let text = `Бот обновляет курсы доллара и евро раз в 5 минут, используя данные ММВБ.
-
-Список команд:
-/get — Получить текущий биржевой курс
-/settings — Настроить оповещения по изменению курса
-/stop — Отписаться от оповещений`;
+            const text =
+                'Бот обновляет курсы доллара и евро раз в 5 минут, используя данные ММВБ.\n' +
+                'Список команд:\n' +
+                '/get — Получить текущий биржевой курс\n' +
+                '/settings — Настроить оповещения по изменению курса\n' +
+                '/stop — Отписаться от оповещений';
 
             this.sendMessage(chatId, text);
         } else if (messageText === '/settings') {
             this.handleSettings(chatId, db, data);
         } else if (messageText === '/stop') {
-            this.updateUser(chatId, db, {sendChanges: false});
+            this.updateUser(chatId, db, { sendChanges: false });
             this.sendMessage(chatId, 'Вы отписались от оповещений');
         } else if (messageText === '/get' || messageText === '💵') {
             this.sendRate(chatId, db);
         } else {
             // Команды не найдены — поиск сообщений для настроек
-            db.collection('users').findOne({id: chatId}, function (err, user) {
+            db.collection('users').findOne({ id: chatId }, (err, user) => {
                 if (err) { throw err; }
 
                 if (messageText === 'Выключить оповещения') {
-                    that.updateUser(chatId, db, {sendChanges: false});
+                    that.updateUser(chatId, db, { sendChanges: false });
                     that.handleSettings(chatId, db);
-                } else if (messageText == 'Включить оповещения') {
-                    that.updateUser(chatId, db, {sendChanges: true});
+                } else if (messageText === 'Включить оповещения') {
+                    that.updateUser(chatId, db, { sendChanges: true });
                     that.handleSettings(chatId, db);
                 } else if (messageText === 'Настроить разницу курса') {
-                    let text = 'Введите новое значение разницы курса (от 0.01 до 10)';
+                    const text = 'Введите новое значение разницы курса (от 0.01 до 10)';
 
-                    that.updateUser(chatId, db, {lastMessage: messageText});
+                    that.updateUser(chatId, db, { lastMessage: messageText });
                     that.sendMessage(chatId, text, JSON.stringify({
                         keyboard: [['Выйти']],
-                        resize_keyboard: true
+                        resize_keyboard: true,
                     }));
                 } else if (user.lastMessage === 'Настроить разницу курса' && messageText === 'Выйти') {
-                    that.updateUser(chatId, db, {lastMessage: ''});
+                    that.updateUser(chatId, db, { lastMessage: '' });
                     that.handleSettings(chatId, db);
                 } else if (user.lastMessage === 'Настроить разницу курса') {
-                    let difference = parseFloat(messageText);
+                    const difference = parseFloat(messageText);
 
                     if (difference && difference >= 0.01 && difference <= 10) {
-                        that.updateUser(chatId, db, {difference: difference, lastMessage: ''});
+                        that.updateUser(chatId, db, {
+                            difference,
+                            lastMessage: '',
+                        });
                         that.handleSettings(chatId, db);
                     }
                 } else if (messageText === 'Выйти') {
@@ -79,39 +82,39 @@ module.exports = {
      * Выводим текущие настройки и клавиатуру с кнопками,
      * ведущими ко всем настройкам в отдельности
      */
-    handleSettings: function (chatId, db, data) {
-        let that = this;
+    handleSettings(chatId, db, data) {
+        const that = this;
 
-        db.collection('users').findOne({id: chatId}, function (err, user) {
+        db.collection('users').findOne({ id: chatId }, (err, user) => {
             if (err) { throw err; }
 
-            let sendChanges = (user && user.sendChanges) || false;
+            const sendChanges = (user && user.sendChanges) || false;
+            const replyMarkup = { resize_keyboard: true };
             let text = 'Текущие настройки:\nОповещения об изменении курса: ';
-            let replyMarkup = {resize_keyboard: true};
 
             if (!user) {
                 db.collection('users').insertOne({
                     id: chatId,
                     name: `${data.message.chat.first_name} ${data.message.chat.last_name || ''}`,
-                    sendChanges: sendChanges,
-                    difference: 1
+                    sendChanges,
+                    difference: 1,
                 });
             }
 
             if (sendChanges) {
-                let difference = user.difference || 1;
+                const difference = user.difference || 1;
 
                 text += `*Включены*\nРазница курса для оповещения: *${difference} руб.*`;
                 replyMarkup.keyboard = [
                     ['Выключить оповещения'],
                     ['Настроить разницу курса'],
-                    ['Выйти']
+                    ['Выйти'],
                 ];
             } else {
                 text += '*Выключены*';
                 replyMarkup.keyboard = [
                     ['Включить оповещения'],
-                    ['Выйти']
+                    ['Выйти'],
                 ];
             }
 
@@ -122,29 +125,27 @@ module.exports = {
     /**
      * Отправка стандартного сообщения
      */
-    sendMessage: function (chatId, text, replyMarkup) {
-        let request;
-
-        replyMarkup = replyMarkup || JSON.stringify({
+    sendMessage(chatId, text, _replyMarkup) {
+        const replyMarkup = _replyMarkup || JSON.stringify({
             keyboard: [['💵']],
-            resize_keyboard: true
+            resize_keyboard: true,
         });
 
         options.path = path + querystring.stringify({
             chat_id: chatId,
-            text: text,
+            text,
             reply_markup: replyMarkup,
-            parse_mode: 'Markdown'
+            parse_mode: 'Markdown',
         });
 
-        request = https.request (options, function (res) {
-            res.on('data', function (resData) {
-                console.log('Got answer at: ' + new Date() + '\n', JSON.parse(resData.toString()));
+        const request = https.request(options, (res) => {
+            res.on('data', (resData) => {
+                console.log(`${(new Date()).toISOString()}: Got answer\n`, JSON.parse(resData.toString()));
             });
         });
 
-        request.on('error', function (e) {
-            console.log('Problem with request at: ' + new Date() + '\n', e.message);
+        request.on('error', (err) => {
+            console.log(`${(new Date()).toISOString()}: Problem with request\n`, err);
         });
 
         request.end();
@@ -153,28 +154,27 @@ module.exports = {
     /**
      * Отправляем курс валют
      */
-    sendRate: function (chatId, db) {
-        let that = this;
+    sendRate(chatId, db) {
+        const that = this;
 
-        db.collection('rates').find().toArray(function (err, collection) {
+        db.collection('rates').find().toArray((err, collection) => {
             if (err) { throw err; }
 
-            db.collection('users').findOne({id: chatId}, function (err, user) {
+            db.collection('users').findOne({ id: chatId }, (err, user) => {
                 if (err) { throw err; }
 
-                let lastSend = user && user.lastSend || {};
-                let text;
+                const lastSend = (user && user.lastSend) || {};
 
                 // Сначала доллар
-                collection.sort(function (rate) {
+                collection.sort((rate) => {
                     if (rate.title === 'USD') {
                         return -1;
-                    } else {
-                        return 1;
                     }
+
+                    return 1;
                 });
 
-                text = collection.map(function (rate) {
+                const text = collection.map((rate) => {
                     let result = `${rate.title}: ${rate.rate} руб`;
                     let difference;
 
@@ -194,7 +194,7 @@ module.exports = {
                 }).join('\n');
 
                 // Пользователю сохраняем последние отправленные курсы
-                that.updateUser(chatId, db, {lastSend: lastSend});
+                that.updateUser(chatId, db, { lastSend });
                 that.sendMessage(chatId, text);
             });
         });
@@ -203,19 +203,19 @@ module.exports = {
     /**
      * Обновление настроек у пользователя
      */
-    updateUser: function (chatId, db, options) {
-        let that = this;
+    updateUser(chatId, db, data) {
+        const that = this;
 
-        if (options && Object.keys(options).length) {
+        if (data && Object.keys(data).length) {
             db.collection('users').findOneAndUpdate({
-                id: chatId
+                id: chatId,
             }, {
-                $set: options
-            }, function (err) {
+                $set: data,
+            }, (err) => {
                 if (err) { throw err; }
 
-                if (typeof options.sendChanges === 'boolean') {
-                    that.notifyAdmin(db, options.sendChanges);
+                if (typeof data.sendChanges === 'boolean') {
+                    that.notifyAdmin(db, data.sendChanges);
                 }
             });
         }
@@ -225,18 +225,18 @@ module.exports = {
      * Отправить админу информацию о подключении/отключении от оповещений
      * и кол-во подключенных пользователей
      */
-    notifyAdmin: function (db, sendChanges) {
-        let that = this;
+    notifyAdmin(db, sendChanges) {
+        const that = this;
         let text = sendChanges ? '+1' : '-1';
 
         db.collection('users').find({
-            sendChanges: true
-        }).toArray(function (err, collection) {
+            sendChanges: true,
+        }).toArray((err, collection) => {
             if (err) { throw err; }
 
             text = `Кол-во оповещаемых: ${text} (${collection && collection.length})`;
 
             that.sendMessage(config.adminId, text);
         });
-    }
+    },
 };

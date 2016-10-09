@@ -1,8 +1,4 @@
 /app/config.json
 /node_modules
+/docs
 .remote-sync.json
-rouble.png
-PLAN.md
-rates.json
-.DS_Store
-newrelic.js
