@@ -18,6 +18,11 @@ module.exports = {
      */
     handleMessage(req, db, data) {
         const that = this;
+
+        if (!data.message) {
+            return;
+        }
+
         const messageText = data.message.text;
         const chatId = data.message.chat.id;
 
@@ -26,6 +31,7 @@ module.exports = {
         if (messageText === '/start') {
             const text =
                 'Бот обновляет курсы доллара и евро раз в 5 минут, используя данные ММВБ.\n' +
+                'Торги на бирже идут по будним дням с 10 до 23:50. Данные по курсам не в реальном времени, задержка около 15 минут\n\n' +
                 'Список команд:\n' +
                 '/get — Получить текущий биржевой курс\n' +
                 '/settings — Настроить оповещения по изменению курса\n' +
@@ -58,10 +64,10 @@ module.exports = {
                         keyboard: [['Выйти']],
                         resize_keyboard: true,
                     }));
-                } else if (user.lastMessage === 'Настроить разницу курса' && messageText === 'Выйти') {
+                } else if (user && user.lastMessage === 'Настроить разницу курса' && messageText === 'Выйти') {
                     that.updateUser(chatId, db, { lastMessage: '' });
                     that.handleSettings(chatId, db);
-                } else if (user.lastMessage === 'Настроить разницу курса') {
+                } else if (user && user.lastMessage === 'Настроить разницу курса') {
                     const difference = parseFloat(messageText);
 
                     if (difference && difference >= 0.01 && difference <= 10) {
@@ -157,11 +163,11 @@ module.exports = {
     sendRate(chatId, db) {
         const that = this;
 
-        db.collection('rates').find().toArray((err, collection) => {
-            if (err) { throw err; }
+        db.collection('rates').find().toArray((ratesError, collection) => {
+            if (ratesError) { throw ratesError; }
 
-            db.collection('users').findOne({ id: chatId }, (err, user) => {
-                if (err) { throw err; }
+            db.collection('users').findOne({ id: chatId }, (userError, user) => {
+                if (userError) { throw userError; }
 
                 const lastSend = (user && user.lastSend) || {};
 
