@@ -14,7 +14,7 @@ const MongoClient = require('mongodb').MongoClient;
 
 const getNewRates = (db) => {
     const request = https.request({
-        hostname: 'moex.com',
+        hostname: 'iss.moex.com',
         path,
         port: 443,
         method: 'GET',
