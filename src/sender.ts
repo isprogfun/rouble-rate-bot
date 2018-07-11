@@ -1,25 +1,46 @@
-"use strict";
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
+interface MessageData {
+    message: {
+        text: string,
+        chat: {
+            id: number,
+            first_name: string,
+            last_name: string
+        }
+    }
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-;
-const https = __importStar(require("https"));
-const querystring = __importStar(require("querystring"));
+
+interface ReplyMarkup {
+    resize_keyboard: boolean,
+    keyboard?: Array<Array<string>>
+}
+
+interface Options {
+    hostname: string,
+    port: string,
+    method: string,
+    path?: string
+}
+
+interface UserUpdate {
+    sendChanges?: boolean,
+    lastMessage?: string,
+    difference?: number,
+    lastSend?: {string: number}
+}
+
+import * as https from 'https';
+import * as querystring from 'querystring';
+import { Db } from 'mongodb';
 var config = require('../config.json');
 var path = "/bot" + config.token + "/sendMessage?";
-var options = {
+var options: Options = {
     hostname: 'api.telegram.org',
     port: '443',
     method: 'POST'
 };
-exports.default = {
+export default {
     // First — handle commands, then if message is not a command — try to find a dialog
-    handleMessage: function (db, data) {
+    handleMessage: function (db: Db, data: MessageData) {
         var that = this;
         if (!data.message) {
             return;
@@ -89,15 +110,16 @@ exports.default = {
             });
         }
     },
+
     // Show settings and keyboard with controls
-    handleSettings: function (chatId, db, data) {
+    handleSettings: function (chatId: string, db: Db, data: MessageData) {
         var that = this;
         db.collection('users').findOne({ id: chatId }, function (err, user) {
             if (err) {
                 throw err;
             }
             var sendChanges = (user && user.sendChanges) || false;
-            var replyMarkup = { resize_keyboard: true };
+            var replyMarkup: ReplyMarkup = { resize_keyboard: true };
             var text = 'Текущие настройки:\nОповещения об изменении курса: ';
             if (!user) {
                 db.collection('users').insertOne({
@@ -126,8 +148,9 @@ exports.default = {
             that.sendMessage(chatId, text, JSON.stringify(replyMarkup));
         });
     },
+
     // Send message
-    sendMessage: function (chatId, text, _replyMarkup) {
+    sendMessage: function (chatId: number, text: string, _replyMarkup: ReplyMarkup) {
         var replyMarkup = _replyMarkup || JSON.stringify({
             keyboard: [['💵']],
             resize_keyboard: true
@@ -148,8 +171,9 @@ exports.default = {
         });
         request.end();
     },
+
     // Send rate
-    sendRate: function (chatId, db) {
+    sendRate: function (chatId: number, db: Db) {
         var that = this;
         db.collection('rates').find().toArray(function (ratesError, collection) {
             if (ratesError) {
@@ -188,8 +212,9 @@ exports.default = {
             });
         });
     },
+
     // Update user settings
-    updateUser: function (chatId, db, data) {
+    updateUser: function (chatId: number, db: Db, data: UserUpdate) {
         var that = this;
         if (data && Object.keys(data).length) {
             db.collection('users').findOneAndUpdate({
@@ -206,8 +231,9 @@ exports.default = {
             });
         }
     },
+
     // Send information about user to admin
-    notifyAdmin: function (db, sendChanges) {
+    notifyAdmin: function (db: Db, sendChanges: boolean) {
         var that = this;
         var text = sendChanges ? '+1' : '-1';
         db.collection('users').find({

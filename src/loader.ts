@@ -1,29 +1,26 @@
-"use strict";
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const https = __importStar(require("https"));
-const mongodb_1 = require("mongodb");
-const sender_1 = __importDefault(require("./sender"));
+/**
+ * Gets current rates every 5 minutes, stores them in db and finds users that wiil get a new rates
+ */
+interface Rate {
+    title: string;
+    rate: number;
+}
+
+import * as http from 'http';
+import * as https from 'https';
+import { MongoClient, MongoError, Db } from 'mongodb';
+import sender from './sender';
 var config = require('../config.json');
 var path = '/iss/engines/currency/markets/selt/boards/CETS/securities.json?securities=USD000UTSTOM,EUR_RUB__TOM';
-var getNewRates = function (db) {
+var getNewRates = function (db: Db) {
     var request = https.request({
         hostname: 'iss.moex.com',
         path: path,
         port: 443,
         method: 'GET'
-    }, function (res) {
+    }, function (res: http.IncomingMessage) {
         var data = '';
-        res.on('data', function (chunk) {
+        res.on('data', function (chunk: {}) {
             data += chunk;
         });
         res.on('end', function () {
@@ -38,7 +35,7 @@ var getNewRates = function (db) {
             // Euro is always first as in request
             var eurRate = parsedData.marketdata.data[0][index];
             var usdRate = parsedData.marketdata.data[1][index];
-            var rates;
+            var rates: Array<Rate>;
             if (eurRate && usdRate) {
                 console.log((new Date()).toISOString() + ": Got new rates");
                 rates = [
@@ -55,6 +52,7 @@ var getNewRates = function (db) {
             else {
                 return;
             }
+
             // Save new rates to a db
             rates.forEach(function (rate) {
                 db.collection('rates').update({
@@ -66,6 +64,7 @@ var getNewRates = function (db) {
                     upsert: true
                 });
             });
+
             // Find users that will get a new rate
             db.collection('users').find({ sendChanges: true }).toArray(function (err, users) {
                 if (err) {
@@ -77,18 +76,17 @@ var getNewRates = function (db) {
                 // For every user
                 users.forEach(function (user) {
                     if (!user.lastSend) {
-                        sender_1.default.sendRate(user.id, db);
+                        sender.sendRate(user.id, db);
                         return;
                     }
                     // Cycle through saved rates
-                    Object.keys(user.lastSend).some(function (title) {
-                        return (
+                    Object.keys(user.lastSend).some(function (title) { return (
                         // Cycle through new rates
                         rates.some(function (rate) {
                             // If difference is more then threshold — send that rate
                             if (title === rate.title &&
                                 Math.abs(user.lastSend[title] - rate.rate) > user.difference) {
-                                sender_1.default.sendRate(user.id, db);
+                                sender.sendRate(user.id, db);
                                 return true;
                             }
                             return false;
@@ -103,11 +101,13 @@ var getNewRates = function (db) {
     });
     request.end();
 };
-mongodb_1.MongoClient.connect('mongodb://localhost:27017', {}, (err, client) => {
+
+MongoClient.connect('mongodb://localhost:27017', {}, (err: MongoError, client: MongoClient) => {
     if (err) {
         throw err;
     }
-    const db = client.db('roubleratebot');
+    const db = client.db('roubleratebot')
+
     getNewRates(db);
     setInterval(function () {
         getNewRates(db);
