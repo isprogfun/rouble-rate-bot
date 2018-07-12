@@ -35,9 +35,6 @@ app.use(function (err: Error, req: express.Request, res: express.Response, next:
     console.log((new Date()).toISOString() + ": Error at middleware", err);
     res.sendStatus(500);
 });
-app.on('error', function (res, req) {
-    console.log((new Date()).toISOString() + ": There is an error");
-});
 app.listen(4750, function () {
     console.log((new Date()).toISOString() + ": Started listening on port 4750...");
 });
