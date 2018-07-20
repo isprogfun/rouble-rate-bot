@@ -1,3 +1,5 @@
 config.json
 node_modules/
 app/
+Makefile
+ecosystem.config.js
