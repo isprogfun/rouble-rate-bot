@@ -22,7 +22,7 @@
   "scripts": {
     "setup": "pm2 deploy ecosystem.config.js production setup",
     "deploy": "pm2 deploy ecosystem.config.js production",
-    "dump": "make dump",
+    "dump": "mongodump -d rouble-rate-bot && tar -czvf dump.tar.gz dump && aws s3 cp dump.tar.gz s3://isprogfun/rouble-rate-bot/db/",
     "cron": "make cron",
     "build": "tsc"
   }
