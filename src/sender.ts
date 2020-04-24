@@ -38,6 +38,11 @@ var options: Options = {
     port: '443',
     method: 'POST'
 };
+
+function checkMessageText(receivedMessage: string, messageToCheck: string) {
+    return receivedMessage === messageToCheck || receivedMessage === `${messageToCheck}@RoubleRateBot`;
+}
+
 export default {
     // First — handle commands, then if message is not a command — try to find a dialog
     handleMessage: function (db: Db, data: MessageData) {
@@ -48,7 +53,7 @@ export default {
         var messageText = data.message.text;
         var chatId = data.message.chat.id;
         console.log((new Date()).toISOString() + ": Got request\n", data);
-        if (messageText === '/start') {
+        if (checkMessageText(messageText, '/start')) {
             var text = 'Бот обновляет курсы доллара и евро раз в 5 минут, используя данные ММВБ.\n' +
                 'Торги на бирже идут по будним дням с 10 до 23:50. Данные по курсам не в реальном времени, задержка около 15 минут\n\n' +
                 'Пожелания и предложения присылайте на адрес isprogfun@gmail.com\n\n' +
@@ -58,14 +63,14 @@ export default {
                 '/stop — Отписаться от оповещений';
             this.sendMessage(chatId, text);
         }
-        else if (messageText === '/settings') {
+        else if (checkMessageText(messageText, '/settings')) {
             this.handleSettings(chatId, db, data);
         }
-        else if (messageText === '/stop') {
+        else if (checkMessageText(messageText, '/stop')) {
             this.updateUser(chatId, db, { sendChanges: false });
             this.sendMessage(chatId, 'Вы отписались от оповещений');
         }
-        else if (messageText === '/get' || messageText === '💵') {
+        else if (checkMessageText(messageText, '/get') || checkMessageText(messageText, '💵')) {
             this.sendRate(chatId, db);
         }
         else {
@@ -74,15 +79,15 @@ export default {
                 if (err) {
                     throw err;
                 }
-                if (messageText === 'Выключить оповещения') {
+                if (checkMessageText(messageText, 'Выключить оповещения')) {
                     that.updateUser(chatId, db, { sendChanges: false });
                     that.handleSettings(chatId, db);
                 }
-                else if (messageText === 'Включить оповещения') {
+                else if (checkMessageText(messageText, 'Включить оповещения')) {
                     that.updateUser(chatId, db, { sendChanges: true });
                     that.handleSettings(chatId, db);
                 }
-                else if (messageText === 'Настроить разницу курса') {
+                else if (checkMessageText(messageText, 'Настроить разницу курса')) {
                     var text = 'Введите новое значение разницы курса (от 0.01 до 10)';
                     that.updateUser(chatId, db, { lastMessage: messageText });
                     that.sendMessage(chatId, text, JSON.stringify({
@@ -90,7 +95,7 @@ export default {
                         resize_keyboard: true
                     }));
                 }
-                else if (user && user.lastMessage === 'Настроить разницу курса' && messageText === 'Выйти') {
+                else if (user && user.lastMessage === 'Настроить разницу курса' && checkMessageText(messageText, 'Выйти')) {
                     that.updateUser(chatId, db, { lastMessage: '' });
                     that.handleSettings(chatId, db);
                 }
@@ -104,7 +109,7 @@ export default {
                         that.handleSettings(chatId, db);
                     }
                 }
-                else if (messageText === 'Выйти') {
+                else if (checkMessageText(messageText, 'Выйти')) {
                     that.sendMessage(chatId, 'Вы вышли из режима настроек');
                 }
             });
