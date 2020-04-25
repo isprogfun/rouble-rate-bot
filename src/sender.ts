@@ -4,14 +4,16 @@ interface MessageData {
         chat: {
             id: number,
             first_name: string,
-            last_name: string
+            last_name: string,
+            type: string
         }
     }
 };
 
 interface ReplyMarkup {
-    resize_keyboard: boolean,
-    keyboard?: Array<Array<string>>
+    resize_keyboard?: boolean;
+    remove_keyboard?: boolean;
+    keyboard?: Array<Array<string>>;
 }
 
 interface Options {
@@ -31,7 +33,6 @@ interface UserUpdate {
 import * as https from 'https';
 import * as querystring from 'querystring';
 import { Db } from 'mongodb';
-import { join } from 'path';
 var config = require('../config.json');
 var path = "/bot" + config.token + "/sendMessage?";
 var options: Options = {
@@ -53,6 +54,7 @@ export default {
         }
         var messageText = data.message.text;
         var chatId = data.message.chat.id;
+        var chatType = data.message.chat.type;
         console.log((new Date()).toISOString() + ": Got request\n", data);
         if (checkMessageText(messageText, '/start')) {
             var text = 'Бот обновляет курсы доллара и евро раз в 5 минут, используя данные ММВБ.\n' +
@@ -62,17 +64,17 @@ export default {
                 '/get — Получить текущий биржевой курс\n' +
                 '/settings — Настроить оповещения по изменению курса\n' +
                 '/stop — Отписаться от оповещений';
-            this.sendMessage(chatId, text);
+            this.sendMessage(chatId, chatType, text);
         }
         else if (checkMessageText(messageText, '/settings')) {
-            this.handleSettings(chatId, db, data);
+            this.handleSettings(chatId, chatType, db, data);
         }
         else if (checkMessageText(messageText, '/stop')) {
             this.updateUser(chatId, db, { sendChanges: false });
-            this.sendMessage(chatId, 'Вы отписались от оповещений');
+            this.sendMessage(chatId, chatType, 'Вы отписались от оповещений');
         }
         else if (checkMessageText(messageText, '/get') || checkMessageText(messageText, '💵')) {
-            this.sendRate(chatId, db);
+            this.sendRate(chatId, chatType, db);
         }
         else {
             // Commands not found
@@ -82,16 +84,16 @@ export default {
                 }
                 if (checkMessageText(messageText, 'Выключить оповещения')) {
                     that.updateUser(chatId, db, { sendChanges: false });
-                    that.handleSettings(chatId, db);
+                    that.handleSettings(chatId, chatType, db);
                 }
                 else if (checkMessageText(messageText, 'Включить оповещения')) {
                     that.updateUser(chatId, db, { sendChanges: true });
-                    that.handleSettings(chatId, db);
+                    that.handleSettings(chatId, chatType, db);
                 }
                 else if (checkMessageText(messageText, 'Настроить разницу курса')) {
                     var text = 'Выберите или введите новое значение разницы курса (от 0.01 до 10)';
                     that.updateUser(chatId, db, { lastMessage: messageText });
-                    that.sendMessage(chatId, text, JSON.stringify({
+                    that.sendMessage(chatId, chatType, text, JSON.stringify({
                         keyboard: [
                             ['0.01', '0.1', '0.2', '0.3', '0.5'],
                             ['1', '2', '3', '5', '10', 'Выйти']
@@ -101,7 +103,7 @@ export default {
                 }
                 else if (user && user.lastMessage === 'Настроить разницу курса' && checkMessageText(messageText, 'Выйти')) {
                     that.updateUser(chatId, db, { lastMessage: '' });
-                    that.handleSettings(chatId, db);
+                    that.handleSettings(chatId, chatType, db);
                 }
                 else if (user && user.lastMessage === 'Настроить разницу курса') {
                     var difference = parseFloat(messageText);
@@ -110,18 +112,18 @@ export default {
                             difference: difference,
                             lastMessage: ''
                         });
-                        that.handleSettings(chatId, db);
+                        that.handleSettings(chatId, chatType, db);
                     }
                 }
                 else if (checkMessageText(messageText, 'Выйти')) {
-                    that.sendMessage(chatId, 'Вы вышли из режима настроек');
+                    that.sendMessage(chatId, chatType, 'Вы вышли из режима настроек');
                 }
             });
         }
     },
 
     // Show settings and keyboard with controls
-    handleSettings: function (chatId: string, db: Db, data: MessageData) {
+    handleSettings: function (chatId: string, chatType: string, db: Db, data: MessageData) {
         var that = this;
         db.collection('users').findOne({ id: chatId }, function (err, user) {
             if (err) {
@@ -154,22 +156,35 @@ export default {
                     ['Выйти'],
                 ];
             }
-            that.sendMessage(chatId, text, JSON.stringify(replyMarkup));
+            that.sendMessage(chatId, chatType, text, JSON.stringify(replyMarkup));
         });
     },
 
     // Send message
-    sendMessage: function (chatId: number, text: string, _replyMarkup: ReplyMarkup) {
-        var replyMarkup = _replyMarkup || JSON.stringify({
-            keyboard: [['💵']],
-            resize_keyboard: true
-        });
-        options.path = path + querystring.stringify({
+    sendMessage: function (chatId: number, chatType: string, text: string, _replyMarkup: string) {
+        var replyMarkup;
+
+        if (_replyMarkup) {
+            replyMarkup = _replyMarkup;
+        } else if (chatType === 'private') {
+            replyMarkup = JSON.stringify({
+                keyboard: [['💵']],
+                resize_keyboard: true
+            });
+        } else {
+            replyMarkup = JSON.stringify({
+                remove_keyboard: true
+            });
+        }
+
+        const settings = {
             chat_id: chatId,
             text: text,
             reply_markup: replyMarkup,
             parse_mode: 'Markdown'
-        });
+        };
+
+        options.path = path + querystring.stringify(settings);
         var request = https.request(options, function (res) {
             res.on('data', function (resData) {
                 console.log((new Date()).toISOString() + ": Got answer\n", JSON.parse(resData.toString()));
@@ -182,7 +197,7 @@ export default {
     },
 
     // Send rate
-    sendRate: function (chatId: number, db: Db) {
+    sendRate: function (chatId: number, chatType: string, db: Db) {
         var that = this;
         db.collection('rates').find().toArray(function (ratesError, collection) {
             if (ratesError) {
@@ -217,7 +232,7 @@ export default {
                 }).join('\n');
                 // Save last sent rates to user
                 that.updateUser(chatId, db, { lastSend: lastSend });
-                that.sendMessage(chatId, text);
+                that.sendMessage(chatId, chatType, text);
             });
         });
     },
@@ -252,7 +267,7 @@ export default {
                 throw err;
             }
             text = `Кол-во оповещаемых: ${text} (${collection && collection.length})`;
-            that.sendMessage(config.adminId, text);
+            that.sendMessage(config.adminId, 'private', text);
         });
     }
 };
