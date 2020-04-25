@@ -76,7 +76,7 @@ var getNewRates = function (db: Db) {
                 // For every user
                 users.forEach(function (user) {
                     if (!user.lastSend) {
-                        sender.sendRate(user.id, db);
+                        sender.sendRate(user.id, '', db);
                         return;
                     }
                     // Cycle through saved rates
@@ -86,7 +86,7 @@ var getNewRates = function (db: Db) {
                             // If difference is more then threshold — send that rate
                             if (title === rate.title &&
                                 Math.abs(user.lastSend[title] - rate.rate) > user.difference) {
-                                sender.sendRate(user.id, db);
+                                sender.sendRate(user.id, '', db);
                                 return true;
                             }
                             return false;
