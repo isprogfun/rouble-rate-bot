@@ -249,25 +249,7 @@ export default {
                 if (err) {
                     throw err;
                 }
-                if (typeof data.sendChanges === 'boolean') {
-                    that.notifyAdmin(db, data.sendChanges);
-                }
             });
         }
-    },
-
-    // Send information about user to admin
-    notifyAdmin: function (db: Db, sendChanges: boolean) {
-        var that = this;
-        var text = sendChanges ? '+1' : '-1';
-        db.collection('users').find({
-            sendChanges: true
-        }).toArray(function (err, collection) {
-            if (err) {
-                throw err;
-            }
-            text = `Кол-во оповещаемых: ${text} (${collection && collection.length})`;
-            that.sendMessage(config.adminId, 'private', text);
-        });
     }
 };
