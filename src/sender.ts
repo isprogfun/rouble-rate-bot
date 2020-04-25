@@ -31,6 +31,7 @@ interface UserUpdate {
 import * as https from 'https';
 import * as querystring from 'querystring';
 import { Db } from 'mongodb';
+import { join } from 'path';
 var config = require('../config.json');
 var path = "/bot" + config.token + "/sendMessage?";
 var options: Options = {
@@ -88,10 +89,13 @@ export default {
                     that.handleSettings(chatId, db);
                 }
                 else if (checkMessageText(messageText, 'Настроить разницу курса')) {
-                    var text = 'Введите новое значение разницы курса (от 0.01 до 10)';
+                    var text = 'Выберите или введите новое значение разницы курса (от 0.01 до 10)';
                     that.updateUser(chatId, db, { lastMessage: messageText });
                     that.sendMessage(chatId, text, JSON.stringify({
-                        keyboard: [['Выйти']],
+                        keyboard: [
+                            ['0.01', '0.1', '0.2', '0.3', '0.5'],
+                            ['1', '2', '3', '5', '10', 'Выйти']
+                        ],
                         resize_keyboard: true
                     }));
                 }
