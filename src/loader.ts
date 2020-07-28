@@ -1,15 +1,11 @@
 /**
  * Gets current rates every 5 minutes, stores them in db and finds users that wiil get a new rates
  */
-interface Rate {
-    title: string;
-    rate: number;
-}
-
 import * as http from 'http';
 import * as https from 'https';
 import { MongoClient, MongoError, Db } from 'mongodb';
 import sender from './sender';
+import { Rate } from './interfaces';
 var config = require('../config.json');
 var path = '/iss/engines/currency/markets/selt/boards/CETS/securities.json?securities=USD000UTSTOM,EUR_RUB__TOM';
 var getNewRates = function (db: Db) {

@@ -1,38 +1,8 @@
-interface MessageData {
-    message: {
-        text: string,
-        chat: {
-            id: number,
-            first_name: string,
-            last_name: string,
-            type: string
-        }
-    }
-};
-
-interface ReplyMarkup {
-    resize_keyboard?: boolean;
-    remove_keyboard?: boolean;
-    keyboard?: Array<Array<string>>;
-}
-
-interface Options {
-    hostname: string,
-    port: string,
-    method: string,
-    path?: string
-}
-
-interface UserUpdate {
-    sendChanges?: boolean,
-    lastMessage?: string,
-    difference?: number,
-    lastSend?: {string: number}
-}
-
 import * as https from 'https';
 import * as querystring from 'querystring';
 import { Db } from 'mongodb';
+
+import { Update, ReplyMarkup, Options, UserUpdate } from './interfaces';
 var config = require('../config.json');
 var path = "/bot" + config.token + "/sendMessage?";
 var options: Options = {
@@ -47,7 +17,7 @@ function checkMessageText(receivedMessage: string, messageToCheck: string) {
 
 export default {
     // First — handle commands, then if message is not a command — try to find a dialog
-    handleMessage: function (db: Db, data: MessageData) {
+    handleMessage: function (db: Db, data: Update) {
         var that = this;
         if (!data.message) {
             return;
@@ -123,7 +93,7 @@ export default {
     },
 
     // Show settings and keyboard with controls
-    handleSettings: function (chatId: string, chatType: string, db: Db, data: MessageData) {
+    handleSettings: function (chatId: string, chatType: string, db: Db, data: Update) {
         var that = this;
         db.collection('users').findOne({ id: chatId }, function (err, user) {
             if (err) {

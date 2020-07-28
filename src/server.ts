@@ -1,40 +1,72 @@
-import sender from './sender.js';
 import { MongoClient, MongoError, Db } from 'mongodb';
-import express from 'express';
+import * as https from 'https';
 
-var config = require('./config.json');
+import { Update } from './interfaces';
+import sender from './sender.js';
+const config = require('../config.json');
 
-var app = express();
-var db: Db;
+let offset = 0;
 
-app.use(function (req, res, next) {
-    if (!db) {
-        MongoClient.connect('mongodb://localhost:27017', {}, (err: MongoError, client: MongoClient) => {
-            if (err) {
-                next(err);
+function makeRequest(db: Db) {
+    let offsetURL = '';
+
+    if (offset > 0) {
+        offsetURL = `&offset=${String(offset + 1)}`;
+    }
+
+    const request = https.request({
+        hostname: 'api.telegram.org',
+        path: `/bot${config.token}/getUpdates?timeout=60${offsetURL}`,
+        port: 443,
+        method: 'GET',
+    }, (responce) => {
+        let data = '';
+
+        responce.on('data', (chunk) => {
+            data += chunk;
+        });
+        responce.on('end', () => {
+            let parsedData;
+
+            try {
+                parsedData = JSON.parse(data);
+            } catch (error) {
+                console.log(`${(new Date()).toISOString()}: Error parsing data, ${error}`);
+
+                return;
             }
 
-            db = client.db('roubleratebot');
-            console.log((new Date()).toISOString() + ": Connected to db");
-            next();
-        })
-    }
-    else {
-        next();
-    }
-});
-app.post("/" + config.token, function (req: express.Request, res: express.Response) {
-    req.on('data', function (data) {
-        sender.handleMessage(db, JSON.parse(data.toString()));
+            if (!parsedData.ok) {
+                console.log(`${(new Date()).toISOString()}: Error in the response, ${JSON.stringify(parsedData)}`);
+
+                return;
+            }
+
+            if (parsedData.result.length === 0) {
+                makeRequest(db);
+            } else {
+                parsedData.result.forEach((update: Update) => {
+                    offset = update.update_id;
+                    sender.handleMessage(db, update);
+                });
+
+                makeRequest(db);
+            }
+        });
     });
-    req.on('end', function () {
-        res.status(200).send({});
+    request.on('error', (error) => {
+        console.log(`${(new Date()).toISOString()}: Error requesting data, '${error}`);
     });
-});
-app.use(function (err: Error, req: express.Request, res: express.Response, next: express.NextFunction) {
-    console.log((new Date()).toISOString() + ": Error at middleware", err);
-    res.sendStatus(500);
-});
-app.listen(4750, function () {
-    console.log((new Date()).toISOString() + ": Started listening on port 4750...");
+    request.end();
+}
+
+MongoClient.connect('mongodb://localhost:27017', {}, (err: MongoError, client: MongoClient) => {
+    if (err) {
+        throw err;
+    }
+
+    const db = client.db('roubleratebot');
+    console.log((new Date()).toISOString() + ": Connected to db");
+
+    makeRequest(db);
 });

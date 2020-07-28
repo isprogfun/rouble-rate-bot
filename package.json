@@ -6,11 +6,9 @@
     "node": ">=5.0.0"
   },
   "dependencies": {
-    "express": "^4.16.3",
     "mongodb": "^3.0.10"
   },
   "devDependencies": {
-    "@types/express": "^4.16.0",
     "@types/mongodb": "^3.0.19",
     "@types/node": "^10.3.1",
     "eslint": "^4.19.1",
