@@ -1,24 +1,24 @@
-const https = require('https');
+const https = require("https");
 
-const token = require('../app/config.json').token;
+const config = require("../config.json");
 
 const options = {
-    host: 'api.telegram.org',
+    host: "api.telegram.org",
     port: 443,
     // Убрать хук
-    // path: `/bot${token}/setWebhook?url=`,
-    path: `/bot${token}/setWebhook?url=https://isprogfun.ru/${token}`,
-    method: 'GET',
+    path: `/bot${config.token}/setWebhook?url=`,
+    // path: `/bot${config.token}/setWebhook?url=${config.url}`,
+    method: "GET",
 };
 
 const request = https.request(options, (res) => {
-    res.on('end', (data) => {
+    res.on("end", (data) => {
         console.log(`${new Date()}: Got answer`);
         console.log(data);
     });
 });
 
-request.on('error', (error) => {
+request.on("error", (error) => {
     console.error(`${new Date()}: Request error`);
     console.error(error);
 });
