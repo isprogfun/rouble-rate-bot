@@ -1,72 +1,25 @@
-import { MongoClient, MongoError, Db } from 'mongodb';
-import * as https from 'https';
+import { Handler } from "aws-lambda";
+import sender from "./common/sender";
+import connectToDatabase from './common/database';
 
-import { Update } from './interfaces';
-import sender from './sender.js';
-const config = require('../config.json');
+const { MONGODB_URI } = process.env;
 
-let offset = 0;
+const handler: Handler = (event, context, callback) => {
+    context.callbackWaitsForEmptyEventLoop = false;
 
-function makeRequest(db: Db) {
-    let offsetURL = '';
-
-    if (offset > 0) {
-        offsetURL = `&offset=${String(offset + 1)}`;
-    }
-
-    const request = https.request({
-        hostname: 'api.telegram.org',
-        path: `/bot${config.token}/getUpdates?timeout=60${offsetURL}`,
-        port: 443,
-        method: 'GET',
-    }, (responce) => {
-        let data = '';
-
-        responce.on('data', (chunk) => {
-            data += chunk;
-        });
-        responce.on('end', () => {
-            let parsedData;
-
-            try {
-                parsedData = JSON.parse(data);
-            } catch (error) {
-                console.log(`${(new Date()).toISOString()}: Error parsing data, ${error}`);
-
-                return;
-            }
-
-            if (!parsedData.ok) {
-                console.log(`${(new Date()).toISOString()}: Error in the response, ${JSON.stringify(parsedData)}`);
-
-                return;
-            }
-
-            if (parsedData.result.length === 0) {
-                makeRequest(db);
-            } else {
-                parsedData.result.forEach((update: Update) => {
-                    offset = update.update_id;
-                    sender.handleMessage(db, update);
+    connectToDatabase(MONGODB_URI).then((db) => {
+        try {
+            sender.handleMessage(db, JSON.parse(event.body), () => {
+                callback(null, {
+                    statusCode: 200
                 });
+            });
+        } catch (error) {
+            console.log("=> an error occurred: ", error);
 
-                makeRequest(db);
-            }
-        });
+            callback(error);
+        }
     });
-    request.on('error', (error) => {
-        console.log(`${(new Date()).toISOString()}: Error requesting data, '${error}`);
-    });
-    request.end();
-}
+};
 
-MongoClient.connect('mongodb://localhost:27017', {}, (err: MongoError, client: MongoClient) => {
-    if (err) {
-        throw err;
-    }
-
-    const db = client.db('roubleratebot');
-    console.log((new Date()).toISOString() + ": Connected to db");
-
-    makeRequest(db);
-});
+exports.handler = handler;
