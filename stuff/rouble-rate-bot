@@ -1,8 +1,0 @@
-/var/log/pm2/rouble-rate-bot/*.log {
-    daily
-    missingok
-    rotate 7
-    compress
-    delaycompress
-    copytruncate
-}
